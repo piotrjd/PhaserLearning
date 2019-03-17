@@ -3,9 +3,248 @@
 <html lang="en" xmlns="http://www.w3.org/1999/xhtml">
 <head>
     <meta charset="utf-8" />
-    <title></title>
+    <title>FirstPhaserGame</title>
+    <script src="node_modules/phaser/dist/phaser.js"></script>
+    <link rel="stylesheet" type="text/css" href="css/game.css">
 </head>
 <body>
+
+<div class="gameContent">
+    <script type="text/javascript">
+
+        var config = {
+            type: Phaser.AUTO,
+            width: 800,
+            height: 600,
+            physics: {
+                default: 'arcade',
+                arcade: {
+                    gravity: { y: 300 },
+                    debug: false
+                }
+            },
+            scene: {
+                preload: preload,
+                create: create,
+                update: update
+            }
+        };
+
+        var game = new Phaser.Game(config);
+        
+        var platforms;
+        var player;
+        var cursors;
+
+        var stars;
+        var bombs;
+        var potions;
+        var boosts;
+
+        var score = 0;
+        var scoreText;
+
+        var health = 100;
+        var healthText;
+
+        var speedFactor = 1;
+
+        function preload() {
+            this.load.image('sky', 'assets/sky.png');
+            this.load.image('ground', 'assets/platform.png');
+            this.load.image('star', 'assets/star.png');
+            this.load.image('bomb', 'assets/bomb.png');
+            this.load.image('potion', 'assets/potion.png');
+            this.load.image('boost', 'assets/boost.png');
+            this.load.spritesheet('dude',
+                'assets/dude.png',
+                { frameWidth: 32, frameHeight: 48 }
+            );
+        }
+
+        function create() {
+            this.add.image(400, 300, 'sky');
+
+            //Terrain definition
+            platforms = this.physics.add.staticGroup();
+
+            platforms.create(400,568,'ground').setScale(2).refreshBody();
+
+            platforms.create(600,400,'ground');
+            platforms.create(50,250,'ground');
+            platforms.create(750,220,'ground');
+            
+            //Player definition
+            player = this.physics.add.sprite(100,450,'dude');
+
+            player.setBounce(0.2);
+            player.setCollideWorldBounds(true);
+
+            this.anims.create({
+                key: 'left',
+                frames: this.anims.generateFrameNumbers('dude',{start: 0, end: 3}),
+                frameRate: 10,
+                repeat: -1
+            });
+
+            this.anims.create({
+                key: 'turn',
+                frames: [ { key: 'dude', frame: 4 } ],
+                frameRate: 20
+             });
+
+            this.anims.create({
+                key: 'right',
+                frames: this.anims.generateFrameNumbers('dude', { start: 5, end: 8 }),
+                frameRate: 10,
+                repeat: -1
+            });
+
+            player.body.setGravityY(300);
+            this.physics.add.collider(player, platforms);
+
+            //Add additional objects
+            stars = this.physics.add.group({
+                key: 'star',
+                repeat: 11,
+                setXY: { x: 12, y: 0, stepX: 70 }
+            });
+
+            stars.children.iterate(function (child) {
+                child.setBounceY(Phaser.Math.FloatBetween(0.2, 0.9));
+            });
+            this.physics.add.collider(stars, platforms);
+
+            //Define overlap of the player and the star
+            this.physics.add.overlap(player, stars, collectStar, null, this);
+
+            //Add bombs
+            bombs = this.physics.add.group();
+            this.physics.add.collider(bombs, platforms);
+            this.physics.add.collider(player,bombs, hitBomb, null, this);
+
+            //Add potions
+            potions = this.physics.add.group();
+            this.physics.add.collider(potions, platforms);
+            this.physics.add.overlap(player,potions, collectPotion, null, this);
+
+            //Add boosts
+            boosts = this.physics.add.group();
+            this.physics.add.collider(boosts, platforms);
+            this.physics.add.overlap(player,boosts, collectBoost, null, this);
+
+            this.time.addEvent({ delay: 6000, callback: generateBoost, callbackScope: this, repeat: -1});
+
+            //Score init
+            scoreText = this.add.text(16, 16, 'Score: 0', { fontSize: '32px', fill: '#000' });
+            healthText = this.add.text(560, 16, 'Health: 100%', { fontSize: '32px', fill: '#000' });
+
+            //Define control mechanism
+            cursors = this.input.keyboard.createCursorKeys();
+        }
+
+        function update() {
+            if (cursors.left.isDown)
+            {
+                player.setVelocityX(-160 * speedFactor);
+
+                player.anims.play('left', true);
+            }
+            else if (cursors.right.isDown)
+            {
+                player.setVelocityX(160 * speedFactor);
+
+                player.anims.play('right', true);
+            }
+            else
+            {
+                player.setVelocityX(0);
+
+                player.anims.play('turn');
+            }
+
+            if (cursors.up.isDown && player.body.touching.down)
+            {
+                player.setVelocityY(-500);
+            }
+        }
+
+        function collectStar (player, star)
+        {
+            star.disableBody(true, true);
+
+            score += 10;
+            scoreText.setText('Score: ' + score);
+
+            if (stars.countActive(true) === 0)
+            {
+                stars.children.iterate(function (child) {
+                    child.enableBody(true, child.x, 0, true, true);
+                });
+
+                var x = (player.x < 400) ? Phaser.Math.Between(400, 800) : Phaser.Math.Between(0, 400);
+
+                var bomb = bombs.create(x, 16, 'bomb');
+                bomb.setBounce(1);
+                bomb.setCollideWorldBounds(true);
+                bomb.setVelocity(Phaser.Math.Between(-200, 200), 20);
+
+                var potion = potions.create(x, 16, 'potion');
+                potion.setBounceY(0.1);
+                potion.setCollideWorldBounds(true);
+            }   
+
+        }
+
+        function hitBomb(player, bomb)
+        {
+            health = health - 20;
+            healthText.setText('Health: ' + health + '%');
+
+            if(health <= 0){
+                this.physics.pause();
+
+                this.add.text(60, 260, 'GAME OVER!', { fontSize: '120px', fill: '#ff0000' });
+
+                player.setTint(0xff0000);
+
+                player.anims.play('turn');
+
+                gameOver = true;
+                
+            }
+        }
+
+        function collectPotion(player, potion)
+        {
+            health = health + 20;
+            healthText.setText('Health: ' + health + '%');
+
+            potion.disableBody(true,true);
+        }
+
+        function collectBoost(player, boost){
+            boost.disableBody(true, true);
+            speedFactor = 2.5; 
+
+            this.time.addEvent({ delay: 15000, callback: boostFinished, callbackScope: this, repeat: 0});       
+        }
+
+        function boostFinished(){
+            speedFactor = 1; 
+        }
+
+        function generateBoost(){
+            var xBoost = (player.x < 400) ? Phaser.Math.Between(500, 700) : Phaser.Math.Between(100, 300);
+
+            var boost = boosts.create(xBoost, 16, 'boost');
+            boost.setBounceY(0.1);
+            boost.setCollideWorldBounds(true);
+        }
+
+
+    </script>
+ </div>
 
 </body>
 </html>
