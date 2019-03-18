@@ -133,7 +133,7 @@
             this.physics.add.collider(boosts, platforms);
             this.physics.add.overlap(player,boosts, collectBoost, null, this);
 
-            this.time.addEvent({ delay: 6000, callback: generateBoost, callbackScope: this, repeat: -1});
+            this.time.addEvent({ delay: 60000, callback: generateBoost, callbackScope: this, repeat: -1});
 
             //Score init
             scoreText = this.add.text(16, 16, 'Score: 0', { fontSize: '32px', fill: '#000' });
